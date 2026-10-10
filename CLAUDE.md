@@ -90,15 +90,6 @@ If an ask fits nothing here, run the CLI directly (`npm run hr -- help`) and the
 - Record checks are not legal advice. Say which rule a finding comes from (docs/compliance.md) and that the business decides.
 - A visa or a licence is current only if the record says so. If the expiry is missing, ask for it from VisaView, VEVO or the card itself.
 
-## People rules
-
-- Monday: `/weekly-review`. When a new version of a policy goes out: `/add-policy`, then `/draft-reminders`. Before day 80 of any NZ trial: `/trials` with the manager.
-- Personal information stays here. Do not paste names, visa details, health or case notes into anything outside this database without the operator asking for it in this session.
-- Payroll is not here. Never state what someone is paid or owed: leave balances are a snapshot from payroll with an as-at date; say it.
-- Case notes are facts: what happened, what was said, by whom, when. No opinions, no diagnoses. Performance and conduct process follows the business's policy and legal advice.
-- Record checks are not legal advice. Say which rule a finding comes from (docs/compliance.md) and that the business decides.
-- A visa or a licence is current only if the record says so. If the expiry is missing, ask for it from VisaView, VEVO or the card itself.
-
 ## Where things live
 
 - `scripts/` the CLI. `scripts/lib/db.mjs` picks `DATABASE_URL` (Postgres, Supabase) or the embedded database in `.data/`.
