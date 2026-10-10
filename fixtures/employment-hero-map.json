@@ -1,0 +1,6 @@
+{
+  "_": "Only needed when your export's headers or values differ from the ones the import already knows. See docs/replace-employment-hero.md.",
+  "columns": { "manager": "Primary Manager Email" },
+  "employers": { "Totara Foods NZ": "Totara Foods NZ Ltd", "Totara Foods AU": "Totara Foods Australia Pty Ltd" },
+  "types": { "Permanent Full Time": "full_time" }
+}

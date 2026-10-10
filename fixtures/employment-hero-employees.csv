@@ -1,0 +1,5 @@
+Employee Code,First Name,Last Name,Known As,Work Email,Mobile,Job Title,Department,Location,Primary Manager Email,Employment Type,Hours Per Week,Start Date,Contract End Date,Termination Date,Date of Birth,Organisation
+N13,Rose,Henare,,rose@totarafoods.example,021 555 0101,Quality Technician,Quality,Hamilton,priya@totarafoods.example,Full-time,40,03/11/2025,,,14/02/1994,Totara Foods NZ
+N14,Josh,Taylor,JT,josh@totarafoods.example,021 555 0102,Packer,Operations,Hamilton,daniel@totarafoods.example,Casual,,12/01/2026,,,,Totara Foods NZ
+A07,Mia,"Robinson, Jr",,mia@totarafoods.example,0400 555 103,Account Manager,Sales,Sydney,liam@totarafoods.example,Fixed term,38,02/02/2026,01/02/2027,,,Totara Foods AU
+A08,Oscar,Lee,,oscar@totarafoods.example,0400 555 104,Storeperson,Warehouse,Melbourne,A07,Part-time,20,01/03/2026,,,,Totara Foods AU

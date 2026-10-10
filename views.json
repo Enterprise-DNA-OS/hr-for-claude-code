@@ -1,14 +1,36 @@
 [
   {
-    "name": "week",
-    "title": "This week",
-    "subtitle": "HR for Claude Code: what needs attention, rendered by npm run view",
+    "name": "this-week",
+    "title": "People this week",
+    "subtitle": "What needs a person, who is away, and the reviews and trials coming up",
     "sections": [
-      {
-        "title": "Needs attention",
-        "note": "TODO(author): point this at the industry's attention view (overdue, stuck, quiet).",
-        "sql": "select 'replace me' as item, 'TODO(author)' as why"
-      }
+      { "title": "Needs attention", "note": "Thresholds live in the settings table.", "sql": "select item, issue, detail from v_attention order by issue, item" },
+      { "title": "Away in the next two weeks", "sql": "select name, employer, department, leave_type, starts_on, ends_on from v_away order by starts_on" },
+      { "title": "Leave waiting for a decision", "sql": "select name, manager, leave_type, starts_on, ends_on, days_waiting from v_leave_open order by requested_on" },
+      { "title": "Reviews due", "sql": "select name, manager, kind, due_on, state from v_reviews where state <> 'booked' order by due_on" },
+      { "title": "Trials and probation", "sql": "select name, kind, ends_on, days_left, reviewed from v_trials order by ends_on" }
+    ]
+  },
+  {
+    "name": "compliance",
+    "title": "Record checks",
+    "subtitle": "The employment records checked against NZ and Australian rules. Sources in docs/compliance.md",
+    "sections": [
+      { "title": "Findings", "sql": "select rule, item, finding from v_compliance order by rule, item" },
+      { "title": "Certifications and licences", "sql": "select name, certification, expires_on, days_left, state from v_certs where state in ('expired','expiring') order by expires_on" },
+      { "title": "Australian information statements", "sql": "select d.name, d.kind, d.due_from, (select max(given_on) from statements s where s.employee_id = d.employee_id and s.kind = d.kind) as last_given from v_statements_due d order by d.name, d.kind" },
+      { "title": "Policies not acknowledged", "sql": "select policy, version, name, days_open from v_policy_gaps order by days_open desc" }
+    ]
+  },
+  {
+    "name": "workforce",
+    "title": "Workforce",
+    "subtitle": "Headcount, turnover and the annual leave liability",
+    "sections": [
+      { "title": "Headcount", "sql": "select * from v_headcount order by employer, department" },
+      { "title": "Turnover, last twelve months", "sql": "select * from v_turnover order by employer" },
+      { "title": "Annual leave balances", "note": "From the last payroll import.", "sql": "select name, employer, hours, weeks, as_at, large from v_balances where leave_type = 'annual' order by weeks desc" },
+      { "title": "Work anniversaries in the next 30 days", "sql": "select name, department, anniversary, years from v_anniversaries order by anniversary" }
     ]
   }
 ]

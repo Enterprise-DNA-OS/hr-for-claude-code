@@ -1,11 +1,40 @@
 [
   {
-    "name": "example",
-    "title": "TODO(author): the first document this industry must produce",
-    "for_each": "select gen_random_uuid() as id, 'Example' as name",
+    "name": "employee-file",
+    "title": "Employee file",
+    "for_each": "select id, name from v_people where status in ('active','leaving','starting') order by name",
     "file": "name",
     "sections": [
-      { "title": "Details", "sql": "select 'replace me' as item, $1::text as record_id" }
+      { "title": "Employment", "sql": "select code, employer, job_title, department, manager, employment_type, hours_per_week, start_date, fixed_term_end, trial_period_days, probation_end, work_rights, visa_expires_on, status from v_people where id = $1" },
+      { "title": "Agreements", "sql": "select kind, offered_on, signed_on, starts_on, ends_on, summary from agreements where employee_id = $1 order by coalesce(signed_on, offered_on)" },
+      { "title": "Information statements (Australia)", "sql": "select kind, given_on, evidence from statements where employee_id = $1 order by given_on" },
+      { "title": "Leave balances", "sql": "select leave_type, hours, as_at from leave_balances where employee_id = $1 order by leave_type" },
+      { "title": "Reviews", "sql": "select kind, due_on, completed_on, reviewer, outcome from reviews where employee_id = $1 order by due_on desc" },
+      { "title": "Certifications and licences", "sql": "select certification, issued_on, expires_on, state from v_certs where employee_id = $1" },
+      { "title": "Policies acknowledged", "sql": "select p.name as policy, a.version, a.acknowledged_on from acknowledgements a join policies p on p.id = a.policy_id where a.employee_id = $1 order by p.name" },
+      { "title": "Record checks", "sql": "select rule, finding from v_compliance where item like (select name from v_people where id = $1) || ' (%'" }
+    ]
+  },
+  {
+    "name": "manager-pack",
+    "title": "Manager pack",
+    "for_each": "select distinct m.id, m.first_name || ' ' || m.last_name as name from employees m join employees p on p.manager_id = m.id where p.termination_date is null or p.termination_date >= current_date order by name",
+    "file": "name",
+    "sections": [
+      { "title": "Your team", "sql": "select name, job_title, employment_type, start_date, status from v_current where manager_id = $1 order by name" },
+      { "title": "Leave to decide", "sql": "select q.name, q.leave_type, q.starts_on, q.ends_on, q.days_waiting from v_leave_open q join employees e on e.id = q.employee_id where e.manager_id = $1" },
+      { "title": "Reviews you owe", "sql": "select r.name, r.kind, r.due_on, r.state from v_reviews r join employees e on e.id = r.employee_id where e.manager_id = $1 order by r.due_on" },
+      { "title": "Trials and probation", "sql": "select t.name, t.kind, t.ends_on, t.days_left, t.reviewed from v_trials t join employees e on e.id = t.employee_id where e.manager_id = $1" },
+      { "title": "Tickets and licences expiring", "sql": "select c.name, c.certification, c.expires_on, c.state from v_certs c join employees e on e.id = c.employee_id where e.manager_id = $1 and c.state in ('expired','expiring')" }
+    ]
+  },
+  {
+    "name": "leave-liability",
+    "title": "Annual leave liability",
+    "for_each": "select id, name from employers order by name",
+    "file": "name",
+    "sections": [
+      { "title": "Annual leave by person", "note": "Hours from the last payroll import. Value the hours in payroll, which holds the pay rates.", "sql": "select b.name, b.hours, b.weeks, b.as_at, b.large from v_balances b join employees e on e.id = b.employee_id where e.employer_id = $1 and b.leave_type = 'annual' order by b.hours desc" }
     ]
   }
 ]

@@ -1,0 +1,12 @@
+[
+  {"question":"Who is on a 90-day trial that ends in the next fortnight with no review done?","command":"npm run hr -- trials"},
+  {"question":"Which trial periods will not hold because the agreement was signed after the person started?","command":"npm run hr -- compliance"},
+  {"question":"Which casuals are due the Casual Employment Information Statement again?","command":"npm run hr -- statements"},
+  {"question":"Whose visa expires in the next 60 days, and is anyone working on one that has expired?","command":"npm run hr -- attention"},
+  {"question":"Who is driving a forklift on a ticket that has lapsed?","command":"npm run hr -- certifications"},
+  {"question":"Which leave requests has nobody answered, and which manager owes the answer?","command":"npm run hr -- leave"},
+  {"question":"Who has not had an annual review in the last twelve months, and none is booked?","command":"npm run hr -- attention"},
+  {"question":"Who has not acknowledged the new Health and Safety Policy?","command":"npm run hr -- policies"},
+  {"question":"Who is carrying more than eight weeks of annual leave?","command":"npm run hr -- balances"},
+  {"question":"Which Australian fixed-term contracts run past the two-year limit?","command":"npm run hr -- compliance"}
+]

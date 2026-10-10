@@ -1,0 +1,155 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'hr-'));
+process.env.DATA_DIR=path.join(tmp,'db');process.env.OUTPUT_DIR=tmp;
+process.env.DATABASE_URL=process.env.TEST_DATABASE_URL||'';
+const {getDb,REPO_ROOT}=await import('./lib/db.mjs');
+const {migrate}=await import('./migrate.mjs');const {seed}=await import('./seed.mjs');
+const {run,commands,parse,date,employmentType,leaveType}=await import('./hr.mjs');
+const db=await getDb();const covered=new Set();
+const call=async(c,o={},args=[])=>{covered.add(c);return run(db,c,o,args);};
+const day=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
+const actor='Test operator';
+const fx=f=>path.join(REPO_ROOT,'fixtures',f);
+const cli=(file,args=[],expected=0)=>{const r=spawnSync(process.execPath,[file,...args],{cwd:REPO_ROOT,env:process.env,encoding:'utf8'});assert.equal(r.status,expected,r.stderr||r.stdout);return r;};
+const issues=async()=>(await call('attention')).map(r=>`${r.item}|${r.issue}`);
+const rules=async()=>(await call('compliance')).map(r=>`${r.rule}|${r.item.replace(/ \(.*$/,'')}`);
+try{
+ if(db.mode==='postgres'){const existing=await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public'");assert.equal(existing.length,0,'TEST_DATABASE_URL must be an empty, disposable database');}
+ await migrate(db);assert.equal((await migrate(db)).ran.length,0);await seed(db);await seed(db);
+ assert.equal((await call('help')).length,commands.length);
+
+ // Reads on the seeded demo.
+ const emp=await call('employers');assert.equal(emp.length,2);assert.equal(emp.find(r=>r.country==='AU').small_business,true);
+ assert.equal((await call('people')).length,17);assert.equal((await call('people',{status:'all'})).length,18);assert.equal((await call('people',{status:'left'}))[0].name,'Ana Lopez');
+ assert.equal((await call('people',{employer:'Totara Foods Australia'})).length,6);assert.equal((await call('people',{department:'warehouse',type:'casual'})).length,2);
+ const p=await call('person',{employee:'N05'});assert.equal(p.employee[0].name,'Priya Sharma');assert.equal(p.checks[0].rule,'NZ-TRIAL-PERIOD');
+ await assert.rejects(()=>call('person',{employee:'Totara'}),/No employee/);await assert.rejects(()=>call('person',{employee:'an'}),/Ambiguous/);
+ assert.equal((await call('person',{employee:'grace@totarafoods.example'})).employee[0].code,'N09');
+ const org=await call('org');assert.equal(org[0].person,'Aroha Walker');assert.equal(org.length,17);
+ assert.equal((await call('headcount')).reduce((s,r)=>s+Number(r.total),0),17);
+ assert.equal(Number((await call('turnover')).find(r=>r.employer==='Totara Foods NZ Ltd').left_last_12_months),1);
+ assert.equal((await call('leave')).length,2);assert.equal((await call('away')).length,3);
+ assert.equal((await call('balances')).find(r=>r.large).name,'Hemi Rawiri');
+ assert.equal((await call('reviews')).filter(r=>r.state==='overdue').length,2);
+ assert.equal((await call('trials')).find(r=>r.name==='Lucy Brown').days_left,9);
+ assert.equal((await call('certifications'))[0].state,'expired');
+ assert.equal((await call('policies')).length,5);assert.equal((await call('cases')).length,1);assert.equal((await call('tasks')).length,4);
+ assert.equal((await call('statements')).length,8);
+ await call('anniversaries');
+ const seededRules=await rules();
+ for(const r of ['NZ-WRITTEN-AGREEMENT|Grace Liu','NZ-TRIAL-PERIOD|Priya Sharma','NZ-AEWV-TRIAL|Kai Parata','AU-FWIS|Emily Scott','AU-FTCIS|Ravi Patel','AU-CEIS|Chloe Nguyen','AU-FIXED-TERM-LIMIT|Ravi Patel','RIGHT-TO-WORK|Noah Smith','REQUIRED-CERTIFICATION|Sam Tuilagi'])assert.ok(seededRules.includes(r),r);
+ assert.equal(seededRules.length,9);
+ const seeded=await issues();
+ for(const i of ['Sam Tuilagi: annual leave','Ben Fifita: annual review|review overdue','Sam Tuilagi|no annual review','Lucy Brown: trial (90 days)|trial or probation ending','Daniel Kim: First aid certificate|certification expiring','Daniel Kim|visa expiring','Grace Liu: Code of Conduct|policy not acknowledged','Grace Liu: performance case|case step overdue','Kai Parata: Site induction and health and safety briefing|onboarding task overdue','Hemi Rawiri|large leave balance','Tom Wilson|leaving'])
+  assert.ok(seeded.some(s=>s.startsWith(i)||s===i),i);
+ const wk=await call('weekly-review');assert.equal(wk.compliance.length,9);assert.ok(wk.trials.length>=1);
+ await call('activity');
+
+ // Every change needs an actor; fix every seeded finding through the CLI.
+ await assert.rejects(()=>call('hire',{}),/Required: --actor/);
+ await call('agreement',{actor,employee:'Grace Liu',signed:day(-1),evidence:'Signed copy returned'});
+ await assert.rejects(()=>call('agreement',{actor,employee:'N09',signed:day(5),evidence:'x'}),/future/);
+ await call('update',{actor,employee:'Priya Sharma',trial:'null',evidence:'Trial clause invalid: signed after starting. Removed on legal advice'});
+ await call('update',{actor,employee:'N12',trial:'null',evidence:'Accredited employer: no trial period for AEWV holders'});
+ await assert.rejects(()=>call('update',{actor,employee:'N12',trial:'120',evidence:'x'}),/90 or less/);
+ await call('statement',{actor,employee:'Emily Scott',kind:'fwis',evidence:'Emailed'});
+ await call('statement',{actor,employee:'Ravi Patel',kind:'FTCIS',evidence:'Emailed'});
+ await call('statement',{actor,employee:'Chloe Nguyen',kind:'CEIS',evidence:'Emailed at 12 months'});
+ await assert.rejects(()=>call('statement',{actor,employee:'N01',kind:'FWIS',evidence:'x'}),/Australian/);
+ await call('update',{actor,employee:'Ravi Patel','fixed-term-exception':'Distinct task needing specialised skills: systems replacement',evidence:'Legal advice on file'});
+ await call('update',{actor,employee:'Noah Smith','visa-expires':day(700),'visa-type':'Skills in Demand (482), renewed',evidence:'VEVO check'});
+ await call('add-cert',{actor,employee:'Sam Tuilagi',name:'Forklift operator certificate (F endorsement)',issued:day(-1),expires:day(1094),evidence:'Copy on file'});
+ await db.query(`UPDATE certifications SET required=false WHERE expires_on<current_date`);
+ assert.deepEqual(await rules(),[]);
+
+ // Hire, onboard, leave, reviews, policies, cases, offboarding.
+ await assert.rejects(()=>call('hire',{actor,employer:'Totara Foods Australia',code:'A09',first:'Zoe',last:'King',type:'full_time',start:day(14),trial:'90'}),/NZ only/);
+ await assert.rejects(()=>call('hire',{actor,employer:'Totara Foods NZ',code:'N15',first:'Ari',last:'Moana',type:'fixed_term',start:day(14)}),/fixed-end/);
+ await assert.rejects(()=>call('hire',{actor,employer:'Totara Foods NZ',code:'N15',first:'Ari',last:'Moana',type:'full_time',start:day(14),'work-rights':'visa'}),/visa-expires/);
+ const h=await call('hire',{actor,employer:'Totara Foods NZ',code:'N15',first:'Ari',last:'Moana',type:'full_time',start:day(14),hours:'40',title:'Maintenance Fitter',department:'Operations',manager:'Ben Fifita',trial:'90',email:'ari@totarafoods.example'});
+ assert.equal(h.onboarding_tasks,6);
+ assert.ok((await rules()).includes('NZ-TRIAL-PERIOD|Ari Moana'));
+ await call('agreement',{actor,employee:'Ari Moana',offered:day(-3),signed:day(0),starts:day(14),evidence:'Signed PDF'});
+ assert.deepEqual(await rules(),[]);
+ const offer=await call('draft-offer',{employee:'Ari Moana',from:'Mere Tane'});assert.match(fs.readFileSync(offer.file,'utf8'),/trial period of 90 days/);
+ const aoffer=await call('draft-offer',{employee:'Chloe Nguyen'});assert.match(fs.readFileSync(aoffer.file,'utf8'),/Casual Employment Information Statement/);
+ const lr=await call('request-leave',{actor,employee:'Ari Moana',type:'annual',from:day(30),to:day(31),hours:'16'});assert.equal(lr.status,'requested');
+ await assert.rejects(()=>call('request-leave',{actor,employee:'Ari Moana',type:'sick',from:day(31)}),/already has leave/);
+ await assert.rejects(()=>call('request-leave',{actor,employee:'Ari Moana',type:'holiday',from:day(40)}),/type must be one of/);
+ await call('decide-leave',{actor,request:'Sam Tuilagi',decision:'approved',by:'Hemi Rawiri'});
+ await assert.rejects(()=>call('decide-leave',{actor,request:lr.id.slice(0,8),decision:'maybe'}),/decision must be/);
+ await call('decide-leave',{actor,request:lr.id.slice(0,8),decision:'declined',note:'Shutdown week'});
+ await assert.rejects(()=>call('decide-leave',{actor,request:lr.id,decision:'approved'}),/already declined/);
+ assert.ok(!(await issues()).some(i=>i.includes('leave waiting')));
+ await call('book-review',{actor,employee:'Sam Tuilagi',kind:'annual',due:day(10),reviewer:'Hemi Rawiri'});
+ const done=await call('complete-review',{actor,review:'Ben Fifita',outcome:'Meets expectations'});assert.ok(done.next_review);
+ await assert.rejects(()=>call('complete-review',{actor,review:done.id,outcome:'x'}),/Already completed|No review/);
+ await call('book-review',{actor,employee:'Lucy Brown',kind:'trial',due:day(5),reviewer:'Daniel Kim'});
+ await call('complete-review',{actor,review:'Lucy Brown',outcome:'Trial passed, confirmed in role'});
+ assert.ok(!(await issues()).some(i=>i.startsWith('Lucy Brown')));
+ const pol=await call('add-policy',{actor,name:'Flexible Work Policy',version:'1','applies-to':'NZ'});assert.equal(pol.applies_to,'NZ');
+ await assert.rejects(()=>call('add-policy',{actor,name:'Flexible Work Policy',version:'1'}),/already at version/);
+ await call('add-policy',{actor,name:'Code of Conduct',version:'4',effective:day(-20)});
+ assert.ok((await call('policies')).length>15);
+ await call('acknowledge',{actor,employee:'Grace Liu',policy:'Code of Conduct'});
+ await assert.rejects(()=>call('acknowledge',{actor,employee:'Grace Liu',policy:'Code of Conduct'}),/duplicate|unique/i);
+ const c=await call('open-case',{actor,employee:'Liam O\'Brien',kind:'wellbeing',owner:'Jess Morgan',summary:'Asked for reduced hours while caring for a parent','next-step':'Meet to agree hours',due:day(3)});
+ await call('case-note',{actor,case:c.id.slice(0,8),note:'Met, agreed four days for three months'});
+ await assert.rejects(()=>call('update-case',{actor,case:c.id,close:true}),/Required: --outcome/);
+ await call('update-case',{actor,case:c.id,close:true,outcome:'Variation agreed'});
+ await call('update-case',{actor,case:'Grace Liu','next-step':'Review the support plan',due:day(14)});
+ await call('task',{actor,employee:'Ari Moana',task:'Order safety boots',due:day(10),owner:'Ben Fifita'});
+ await assert.rejects(()=>call('done',{actor,task:'Site induction',evidence:'Done'}),/More than one/);
+ await call('done',{actor,task:'Site induction',employee:'Kai Parata',evidence:'Induction sheet signed'});
+ const t=await call('terminate',{actor,employee:'Liam O\'Brien','last-day':day(28),reason:'Resigned',evidence:'Resignation email'});assert.equal(t.offboarding_tasks,5);
+ await assert.rejects(()=>call('terminate',{actor,employee:'Liam O\'Brien','last-day':day(30),reason:'x',evidence:'x'}),/already has a last day/);
+ const sl=await call('draft-service-letter',{employee:'Tom Wilson'});assert.match(fs.readFileSync(sl.file,'utf8'),/Certificate of service/);
+ await assert.rejects(()=>call('draft-service-letter',{employee:'N01'}),/no termination date/);
+ const rem=await call('draft-reminders');assert.ok(rem.length>=3);assert.match(fs.readFileSync(rem[0].file,'utf8'),/DRAFT. Not sent/);
+ await call('add-employer',{actor,name:'Totara Holdings Ltd',country:'NZ',accredited:'false'});
+ await assert.rejects(()=>call('add-employer',{actor,name:'X',country:'UK'}),/NZ or AU/);
+ await call('update',{actor,employee:'N01',department:'Executive',evidence:'Restructure'});
+ await assert.rejects(()=>call('update',{actor,employee:'N01',evidence:'x'}),/No fields/);
+
+ // Employment Hero import: dry run, insert, idempotent, changes need --update, managers linked second.
+ const imp={actor,file:fx('employment-hero-employees.csv'),map:fx('employment-hero-map.json')};
+ assert.equal((await call('import',{...imp,'dry-run':true},['employment-hero'])).inserted,4);assert.equal((await call('people',{status:'all'})).length,19);
+ const r1=await call('import',imp,['employment-hero']);assert.equal(r1.inserted,4);assert.equal(r1.managers_linked,4);assert.deepEqual(r1.managers_not_found,[]);
+ assert.equal((await call('person',{employee:'A08'})).employee[0].manager,'Mia Robinson, Jr');
+ assert.equal((await call('person',{employee:'A07'})).employee[0].employment_type,'fixed_term');
+ assert.equal((await call('import',imp,['employment-hero'])).unchanged,4);
+ const changed=path.join(tmp,'changed.csv');fs.writeFileSync(changed,fs.readFileSync(fx('employment-hero-employees.csv'),'utf8').replace('Quality Technician','Senior Quality Technician'));
+ await assert.rejects(()=>call('import',{...imp,file:changed},['employment-hero']),/--update/);
+ assert.equal((await call('import',{...imp,file:changed,update:true},['employment-hero'])).updated,1);
+ const wrong=path.join(tmp,'wrong.csv');fs.writeFileSync(wrong,'Name,Value\nA,1\n');
+ await assert.rejects(()=>call('import',{actor,file:wrong},['employment-hero']),/No Employee Code column/);
+ const bad=path.join(tmp,'bad.csv');fs.writeFileSync(bad,'Employee Code,First Name,Last Name,Start Date,Employment Type,Organisation\nX1,A,B,31/02/2026,Full-time,Totara Foods NZ\nX2,C,D,2026-01-01,Volunteer,Nowhere\n');
+ await assert.rejects(()=>call('import',{actor,file:bad,map:fx('employment-hero-map.json')},['employment-hero']),/Row 2: Start Date must be a real date[\s\S]*Row 3/);
+ const dup=path.join(tmp,'dup.csv');fs.writeFileSync(dup,'Employee Code,First Name,Last Name,Start Date,Employment Type\nX1,A,B,2026-01-01,Casual\nx1,C,D,2026-01-01,Casual\n');
+ await assert.rejects(()=>call('import',{actor,file:dup,employer:'Totara Holdings'},['employment-hero']),/appears twice/);
+ const b=await call('import',{actor,file:fx('leave-balances.csv')},['balances']);assert.equal(b.balances,4);
+ assert.equal((await call('person',{employee:'A07'})).leave_balances.find(r=>r.leave_type==='personal').hours,'30.1');
+ await assert.rejects(()=>call('import',{actor,file:fx('leave-balances.csv')},['xero']),/supports/);
+ assert.equal((await db.query('SELECT count(*)::int n FROM imports'))[0].n,4);
+ assert.equal(date('03/11/2025','d'),'2025-11-03');assert.throws(()=>date('2026-02-30','d'),/real date/);
+ assert.equal(employmentType('Permanent Part Time','x'),'part_time');assert.equal(leaveType("Personal/Carer's Leave",'x'),'personal');assert.throws(()=>leaveType('Gardening','x'),/not annual/);
+
+ // Parser and export.
+ assert.throws(()=>parse(['people','--oops']),/Unknown flag/);assert.throws(()=>parse(['people','--employer']),/Missing/);assert.throws(()=>parse(['people','--json=1']),/no value/);
+ const ex=await call('export',{out:path.join(tmp,'exports')});assert.equal(ex.length,17);assert.ok(JSON.parse(fs.readFileSync(path.join(tmp,'exports/employees.json'))).length>=23);
+ await assert.rejects(()=>call('export',{out:path.join(tmp,'exports')}),/already exists/);
+ const act=await call('activity');assert.ok(act.length>30);assert.ok(act.every(r=>r.actor));
+ assert.deepEqual([...covered].sort(),[...commands].sort(),'every command exercised');
+ await db.close();
+ cli('scripts/view.mjs');cli('scripts/docs.mjs');
+ for(const v of ['this-week','compliance','workforce'])assert.ok(fs.existsSync(path.join(tmp,'views',v+'.html')),v);
+ for(const d of ['employee-file','manager-pack','leave-liability'])assert.ok(fs.readdirSync(path.join(tmp,'docs-out',d)).length>=1,d);
+ const {page,table}=await import('./lib/render.mjs');assert.match(page({title:'<x>',sections:[{title:'t',html:table([{name:'<script>x</script>'}])}]}),/&lt;script&gt;/);
+ assert.ok(JSON.parse(cli('scripts/hr.mjs',['people','--json']).stdout).length>=20);
+ assert.match(cli('scripts/hr.mjs',['person','--employee=an'],1).stderr,/Ambiguous/);
+ console.log(`PASS: ${commands.length} CLI commands; people, org chart, leave, reviews, trials, certifications, policies, cases, onboarding and offboarding, NZ and AU record checks, Employment Hero and payroll balance import, drafts, export and HTML checked (${process.env.TEST_DATABASE_URL?'PostgreSQL':'PGlite'}).`);
+}finally{try{await db.close();}catch{}fs.rmSync(tmp,{recursive:true,force:true});}

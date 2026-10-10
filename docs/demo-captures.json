@@ -1,0 +1,24 @@
+{
+  "captured": "2026-10-10T12:34:17.242Z",
+  "data": "Fictional seeded demo",
+  "screens": [
+    {
+      "title": "The records that would not survive a visit",
+      "ask": "Is anything in our employment records that would not stand up if the labour inspector or Fair Work came in tomorrow?",
+      "command": "npm run hr -- compliance",
+      "output": "  rule                    item                                           finding\n  ----------------------  ---------------------------------------------  ----------------------------------------------------------------\n  AU-CEIS                 Chloe Nguyen (Totara Foods Australia Pty Ltd)  CEIS due 2026-09-10, last given 2025-09-10\n  AU-FIXED-TERM-LIMIT     Ravi Patel (Totara Foods Australia Pty Ltd)    Fixed term runs 2025-12-10 to 2028-06-10, more than two years\n  AU-FTCIS                Ravi Patel (Totara Foods Australia Pty Ltd)    FTCIS due 2025-12-10, never recorded as given\n  AU-FWIS                 Emily Scott (Totara Foods Australia Pty Ltd)   FWIS due 2026-09-20, never recorded as given\n  NZ-AEWV-TRIAL           Kai Parata (Totara Foods NZ Ltd)               Trial period in an AEWV holder's agreement (accredited employer)\n  NZ-TRIAL-PERIOD         Priya Sharma (Totara Foods NZ Ltd)             Trial clause signed 2026-09-07, after starting 2026-09-05\n  NZ-WRITTEN-AGREEMENT    Grace Liu (Totara Foods NZ Ltd)                No signed employment agreement on file. Started 2025-08-10\n  REQUIRED-CERTIFICATION  Sam Tuilagi (Totara Foods NZ Ltd)              Forklift operator certificate (F endorsement) expired 2026-09-30\n  RIGHT-TO-WORK           Noah Smith (Totara Foods Australia Pty Ltd)    Visa (Skills in Demand (482)) expired 2026-10-05"
+    },
+    {
+      "title": "Trials running out",
+      "ask": "Who is on a trial or probation, when does it end, and has anyone reviewed them yet?",
+      "command": "npm run hr -- trials",
+      "output": "  name          employer                        country  manager      kind             start_date  ends_on     days_left  reviewed\n  ------------  ------------------------------  -------  -----------  ---------------  ----------  ----------  ---------  --------\n  Lucy Brown    Totara Foods NZ Ltd             NZ       Daniel Kim   trial (90 days)  2026-07-22  2026-10-19  9          false\n  Priya Sharma  Totara Foods NZ Ltd             NZ       Ben Fifita   trial (90 days)  2026-09-05  2026-12-03  54         false\n  Kai Parata    Totara Foods NZ Ltd             NZ       Daniel Kim   trial (90 days)  2026-09-20  2026-12-18  69         false\n  Emily Scott   Totara Foods Australia Pty Ltd  AU       Jess Morgan  probation        2026-09-20  2027-03-10  151        false"
+    },
+    {
+      "title": "Leave nobody has answered",
+      "ask": "Which leave requests are still waiting on a manager?",
+      "command": "npm run hr -- leave",
+      "output": "  name          employer                        manager      leave_type  starts_on   ends_on     hours  requested_on  days_waiting  reason\n  ------------  ------------------------------  -----------  ----------  ----------  ----------  -----  ------------  ------------  ----------------------\n  Sam Tuilagi   Totara Foods NZ Ltd             Hemi Rawiri  annual      2026-10-31  2026-11-04  40     2026-10-04    6             Family wedding in Apia\n  Liam O'Brien  Totara Foods Australia Pty Ltd  Jess Morgan  annual      2026-11-19  2026-11-23  38     2026-10-09    1             School holidays"
+    }
+  ]
+}
